@@ -2,10 +2,37 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Product = { id: string; name: string; quantity: number; price: number; category: string };
+
+const DEFAULT_PRODUCTS: Product[] = [
+  { id: 'P001', name: 'Short Bond Paper (A4)', quantity: 500, price: 185, category: 'Bond Paper' },
+  { id: 'P002', name: 'Long Bond Paper (Legal)', quantity: 350, price: 210, category: 'Bond Paper' },
+  { id: 'P003', name: 'Yellow Pad Paper', quantity: 120, price: 45, category: 'Pad Paper' },
+  { id: 'P004', name: 'Colored Bond Paper (Assorted)', quantity: 80, price: 250, category: 'Bond Paper' },
+  { id: 'P005', name: 'Intermediate Pad Paper', quantity: 200, price: 30, category: 'Pad Paper' },
+  { id: 'P006', name: 'Specialty Cardstock A4', quantity: 15, price: 320, category: 'Specialty' },
+  { id: 'P007', name: 'Photo Paper (Glossy A4)', quantity: 0, price: 280, category: 'Specialty' },
+];
+
+function applyStats(
+  items: Product[],
+  setProducts: (p: Product[]) => void,
+  setProductCount: (n: number) => void,
+  setTotalItems: (n: number) => void,
+  setLowStock: (n: number) => void,
+  setOutOfStock: (n: number) => void,
+  setInventoryValue: (n: number) => void,
+) {
+  setProducts(items);
+  setProductCount(items.length);
+  setTotalItems(items.reduce((s, p) => s + p.quantity, 0));
+  setLowStock(items.filter(p => p.quantity > 0 && p.quantity <= 50).length);
+  setOutOfStock(items.filter(p => p.quantity === 0).length);
+  setInventoryValue(items.reduce((s, p) => s + p.quantity * p.price, 0));
+}
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -20,34 +47,35 @@ export default function DashboardScreen() {
   const bg = isDark ? '#0F172A' : '#F8FAFC';
   const card = isDark ? '#1E293B' : '#FFFFFF';
 
-  const [totalItems, setTotalItems] = useState(0);
-  const [lowStock, setLowStock] = useState(0);
-  const [outOfStock, setOutOfStock] = useState(0);
-  const [productCount, setProductCount] = useState(0);
-  const [inventoryValue, setInventoryValue] = useState(0);
-  const [products, setProducts] = useState<Product[]>([]);
+  // Initialize with defaults so it NEVER shows zeros
+  const [totalItems, setTotalItems] = useState(DEFAULT_PRODUCTS.reduce((s, p) => s + p.quantity, 0));
+  const [lowStock, setLowStock] = useState(DEFAULT_PRODUCTS.filter(p => p.quantity > 0 && p.quantity <= 50).length);
+  const [outOfStock, setOutOfStock] = useState(DEFAULT_PRODUCTS.filter(p => p.quantity === 0).length);
+  const [productCount, setProductCount] = useState(DEFAULT_PRODUCTS.length);
+  const [inventoryValue, setInventoryValue] = useState(DEFAULT_PRODUCTS.reduce((s, p) => s + p.quantity * p.price, 0));
+  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
 
   const router = useRouter();
 
-  // Reload data every time this tab gets focus
-  useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        try {
-          const stored = await AsyncStorage.getItem('jayca_inventory');
-          if (stored) {
-            const items: Product[] = JSON.parse(stored);
-            setProducts(items);
-            setProductCount(items.length);
-            setTotalItems(items.reduce((s, p) => s + p.quantity, 0));
-            setLowStock(items.filter(p => p.quantity > 0 && p.quantity <= 50).length);
-            setOutOfStock(items.filter(p => p.quantity === 0).length);
-            setInventoryValue(items.reduce((s, p) => s + p.quantity * p.price, 0));
-          }
-        } catch {}
-      })();
-    }, [])
-  );
+  const loadData = useCallback(async () => {
+    try {
+      let items: Product[];
+      const stored = await AsyncStorage.getItem('jayca_inventory');
+      if (stored) {
+        items = JSON.parse(stored);
+      } else {
+        items = DEFAULT_PRODUCTS;
+        await AsyncStorage.setItem('jayca_inventory', JSON.stringify(DEFAULT_PRODUCTS));
+      }
+      applyStats(items, setProducts, setProductCount, setTotalItems, setLowStock, setOutOfStock, setInventoryValue);
+    } catch {}
+  }, []);
+
+  // Load on first mount (works on mobile)
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Also reload when tab gets focus (works on tab switch)
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const STATS = [
     { label: 'Total Products', value: String(productCount), icon: '📦', color: '#2563EB' },

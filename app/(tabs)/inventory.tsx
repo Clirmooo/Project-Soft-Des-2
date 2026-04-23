@@ -149,6 +149,18 @@ export default function InventoryScreen() {
     }
   };
 
+  const handleReset = () => {
+    const doReset = () => saveProducts(DEFAULT_PRODUCTS);
+    if (Platform.OS === 'web') {
+      if (confirm('Reset inventory to defaults?')) doReset();
+    } else {
+      Alert.alert('Reset Inventory', 'This will restore all default products. Continue?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Reset', style: 'destructive', onPress: doReset },
+      ]);
+    }
+  };
+
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.category.toLowerCase().includes(search.toLowerCase())
@@ -196,6 +208,12 @@ export default function InventoryScreen() {
           onPress={() => { resetForm(); setShowForm(true); }}
         >
           <Text style={styles.addBtnText}>+ Add</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.addBtn, { backgroundColor: '#D97706' }]}
+          onPress={handleReset}
+        >
+          <Text style={styles.addBtnText}>↺ Reset</Text>
         </TouchableOpacity>
       </View>
 
